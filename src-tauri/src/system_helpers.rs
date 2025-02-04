@@ -44,6 +44,7 @@ fn strcmd(cmd: &Command) -> String {
 }
 
 #[cfg(target_os = "linux")]
+#[allow(dead_code)]
 pub trait AsRoot {
   fn as_root(&self) -> Self;
   fn as_root_gui(&self) -> Self;
@@ -64,6 +65,7 @@ impl AsRoot for Command {
 }
 
 #[cfg(target_os = "linux")]
+#[allow(dead_code)]
 trait InTerminalEmulator {
   fn in_terminal(&self) -> Self;
   fn in_terminal_noclose(&self) -> Self;
@@ -104,6 +106,18 @@ impl SpawnItsFineReally for Command {
       Ok(())
     }
   }
+}
+
+#[tauri::command]
+pub fn run_program_args(path: String, args: Option<String>) {
+  match open::with(
+    format!("{}", args.unwrap_or_else(|| "".into())),
+    path.clone(),
+  ) {
+    Ok(_) => (),
+    Err(e) => println!("Failed to open program ({}): {}", &path, e),
+  };
+  return;
 }
 
 #[tauri::command]
@@ -391,44 +405,6 @@ pub fn install_location() -> String {
 }
 
 #[tauri::command]
-pub fn set_migoto_target(window: tauri::Window, migoto_path: String) -> bool {
-  let mut migoto_pathbuf = PathBuf::from(migoto_path);
-
-  migoto_pathbuf.pop();
-  migoto_pathbuf.push("d3dx.ini");
-
-  let mut conf = match Ini::load_from_file(&migoto_pathbuf) {
-    Ok(c) => {
-      println!("Loaded migoto ini");
-      c
-    }
-    Err(e) => {
-      println!("Error loading migoto config: {}", e);
-      return false;
-    }
-  };
-
-  window.emit("migoto_set", &()).unwrap();
-
-  // Set options
-  conf
-    .with_section(Some("Loader"))
-    .set("target", "GenshinImpact.exe");
-
-  // Write file
-  match conf.write_to_file(&migoto_pathbuf) {
-    Ok(_) => {
-      println!("Wrote config!");
-      true
-    }
-    Err(e) => {
-      println!("Error writing config: {}", e);
-      false
-    }
-  }
-}
-
-#[tauri::command]
 pub fn set_migoto_delay(migoto_path: String) -> bool {
   let mut migoto_pathbuf = PathBuf::from(migoto_path);
 
@@ -448,9 +424,18 @@ pub fn set_migoto_delay(migoto_path: String) -> bool {
 
   // Set options
   conf.with_section(Some("Loader")).set("delay", "20");
+  conf
+    .with_section(Some("Include"))
+    .set("include", "ShaderFixes\\help.ini");
 
   // Write file
-  match conf.write_to_file(&migoto_pathbuf) {
+  match conf.write_to_file_opt(
+    &migoto_pathbuf,
+    ini::WriteOption {
+      escape_policy: (ini::EscapePolicy::Nothing),
+      line_separator: (ini::LineSeparator::SystemDefault),
+    },
+  ) {
     Ok(_) => {
       println!("Wrote delay!");
       true
@@ -483,6 +468,33 @@ pub fn wipe_registry(exec_name: String) {
     Ok(_) => (),
     Err(e) => println!("Error wiping registry: {}", e),
   }
+
+  match settings.set_value(
+    "MIHOYOSDK_ADL_PROD_CN_h3123967166",
+    &Data::String("".parse().unwrap()),
+  ) {
+    Ok(_) => (),
+    Err(e) => println!("Error wiping registry: {}", e),
+  }
+
+  let hsr_settings = match Hive::CurrentUser.open(
+    "Software\\Cognosphere\\Star Rail".to_string(),
+    Security::Write,
+  ) {
+    Ok(s) => s,
+    Err(e) => {
+      println!("Error getting registry setting: {}", e);
+      return;
+    }
+  };
+
+  match hsr_settings.set_value(
+    "MIHOYOSDK_ADL_PROD_OVERSEA_h1158948810",
+    &Data::String("".parse().unwrap()),
+  ) {
+    Ok(_) => (),
+    Err(e) => println!("Error wiping registry: {}", e),
+  }
 }
 
 #[cfg(windows)]
@@ -500,7 +512,7 @@ pub fn service_status(service: String) -> bool {
     }
   };
   let status_result = my_service.query_status();
-  if let Ok(..) = status_result {
+  if status_result.is_ok() {
     let status = status_result.unwrap();
     println!("{} service status: {:?}", service, status.current_state);
     if status.current_state == Stopped {

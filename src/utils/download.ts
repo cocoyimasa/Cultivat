@@ -73,6 +73,11 @@ export default class DownloadHandler {
       const index = this.downloads.findIndex((download) => download.path === errorData.path)
       this.downloads[index].status = 'error'
       this.downloads[index].error = errorData.error
+
+      // Remove GIMI from list as fallback will replace it
+      if (errorData.path.includes('GIMI.zip')) {
+        this.downloads.splice(index, 1)
+      }
     })
 
     // Extraction events
@@ -92,6 +97,9 @@ export default class DownloadHandler {
       // Find the download that is not extracting and set it's status as such
       const index = this.downloads.findIndex((download) => download.path === obj.file)
       this.downloads[index].status = 'finished'
+
+      // Remove completed extraction from list
+      this.downloads.splice(index, 1)
     })
   }
 
@@ -101,25 +109,35 @@ export default class DownloadHandler {
 
   downloadingJar() {
     // Kinda hacky but it works
-    return this.downloads.some((d) => d.path.includes('grasscutter.zip') && d.status != ('finished' || 'error'))
+    return this.downloads.some(
+      (d) => d.path.includes('grasscutter.zip') && !(d.status.includes('finished') || d.status.includes('error'))
+    )
   }
 
   downloadingFullBuild() {
     // Kinda hacky but it works
-    return this.downloads.some((d) => d.path.includes('GrasscutterCulti') && d.status != ('finished' || 'error'))
+    return this.downloads.some(
+      (d) => d.path.includes('GrasscutterCulti') && !(d.status.includes('finished') || d.status.includes('error'))
+    )
   }
 
   downloadingResources() {
     // Kinda hacky but it works
-    return this.downloads.some((d) => d.path.includes('resources') && d.status != ('finished' || 'error'))
+    return this.downloads.some(
+      (d) => d.path.includes('resources') && !(d.status.includes('finished') || d.status.includes('error'))
+    )
   }
 
   downloadingRepo() {
-    return this.downloads.some((d) => d.path.includes('grasscutter_repo.zip') && d.status != ('finished' || 'error'))
+    return this.downloads.some(
+      (d) => d.path.includes('grasscutter_repo.zip') && !(d.status.includes('finished') || d.status.includes('error'))
+    )
   }
 
   downloadingMigoto() {
-    return this.downloads.some((d) => d.path.includes('3dmigoto') && d.status != ('finished' || 'error'))
+    return this.downloads.some(
+      (d) => d.path.includes('3dmigoto') && !(d.status.includes('finished') || d.status.includes('error'))
+    )
   }
 
   addDownload(url: string, path: string, onFinish?: () => void) {

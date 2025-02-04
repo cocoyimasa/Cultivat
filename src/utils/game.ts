@@ -45,19 +45,57 @@ export async function getGameDataFolder() {
     return null
   }
 
-  return (await getGameFolder()) + '/' + gameExec.replace('.exe', '_Data')
+  return (await getGameFolder()) + '\\' + gameExec.replace('.exe', '_Data')
 }
 
 export async function getGameVersion() {
   const GameData = await getGameDataFolder()
+  const platform = await invoke('get_platform')
 
   if (!GameData) {
     return null
   }
 
+  let hasAsb = await invoke('dir_exists', {
+    path: GameData + '\\StreamingAssets\\asb_settings.json',
+  })
+
+  if (platform != 'windows') {
+    hasAsb = await invoke('dir_exists', {
+      path: GameData + '/StreamingAssets/asb_settings.json',
+    })
+  }
+
+  if (!hasAsb) {
+    // For games that cannot determine game version
+    let otherGameVer: string = await invoke('read_file', {
+      path: GameData + '\\StreamingAssets\\BinaryVersion.bytes',
+    })
+
+    if (platform != 'windows') {
+      otherGameVer = await invoke('read_file', {
+        path: GameData + '/StreamingAssets/BinaryVersion.bytes',
+      })
+    }
+
+    const versionRaw = otherGameVer.split('.')
+    const version = {
+      major: parseInt(versionRaw[0]),
+      minor: parseInt(versionRaw[1]),
+      // This will probably never matter, just use major/minor. If needed, full version values are near EOF
+      release: 0,
+    }
+
+    if (otherGameVer == null || otherGameVer.length < 1) {
+      return null
+    }
+
+    return version
+  }
+
   const settings = JSON.parse(
     await invoke('read_file', {
-      path: GameData + '/StreamingAssets/asb_settings.json',
+      path: GameData + '\\StreamingAssets\\asb_settings.json',
     })
   )
 
